@@ -7,7 +7,15 @@
 <p>Willkommen im Nordlys Shop, wir liefern in alle nordischen Länder.</p>
 <script>
 var n=0;
-document.getElementById('add').addEventListener('click',function(){trackEvent('add');});
-document.getElementById('sub').addEventListener('click',function(){n++;fetch('/api/subscribe',{method:'POST',body:JSON.stringify({email:document.getElementById('email').value})});document.getElementById('msg').textContent='Subscribed '+n+' time(s)';});
+document.getElementById('add').addEventListener('click',function(){if(typeof trackEvent==='function'){trackEvent('add');}});
+var sub=document.getElementById('sub');
+sub.addEventListener('click',function(){
+var email=document.getElementById('email');
+var msg=document.getElementById('msg');
+if(sub.disabled){return;}
+if(!email.value||!email.checkValidity()){msg.textContent='Please enter a valid email address';return;}
+sub.disabled=true;
+fetch('/api/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email.value})}).then(function(r){if(!r.ok){throw new Error('HTTP '+r.status);}msg.textContent='Subscribed';}).catch(function(){msg.textContent='Could not subscribe, please try again';}).then(function(){sub.disabled=false;});
+});
 </script></main>
 <footer><a href="/careers">Careers</a> · <a href="/about.html">About</a></footer></body></html>
