@@ -47,6 +47,9 @@ jobs:
           else
             mkdir -p "pr-${PR}"
             rsync -a --delete --exclude '.git' --exclude '.github' ../src/ "pr-${PR}/"
+            # The preview lives under /pr-N/, so absolute links in the pages (/style.css, /pricing.html) must point there too.
+            find "pr-${PR}" -name '*.html' -exec sed -i -E "s#(href|src)=\"/([^\"]*)\"#\1=\"/pr-${PR}/\2\"#g" {} +
+            printf '%s' "$HEAD_SHA" > "pr-${PR}/preview-sha.txt"
           fi
           touch .nojekyll
           git add -A
@@ -54,10 +57,11 @@ jobs:
 
           [ "$EVENT" = pull_request ] && [ "$ACTION" != closed ] || exit 0
           URL="https://${REPO%%/*}.github.io/pr-${PR}/"
-          for _ in $(seq 1 40); do
-            if curl -fsS -o /dev/null "$URL"; then break; fi
+          # Wait until the page serves THIS commit: a 200 alone can still be the previous version while Pages rebuilds.
+          for _ in $(seq 1 60); do
+            if [ "$(curl -fsS "${URL}preview-sha.txt" 2>/dev/null || true)" = "$HEAD_SHA" ]; then break; fi
             sleep 10
           done
-          curl -fsS -o /dev/null "$URL"
+          [ "$(curl -fsS "${URL}preview-sha.txt")" = "$HEAD_SHA" ]
           DEPLOY_ID=$(jq -n --arg ref "$HEAD_SHA" --arg env "preview-pr-${PR}" --arg d "Preview of pull request ${PR}" '{ref:$ref, environment:$env, description:$d, auto_merge:false, required_contexts:[], transient_environment:true}' | gh api "repos/${REPO}/deployments" --input - --jq '.id')
           gh api "repos/${REPO}/deployments/${DEPLOY_ID}/statuses" -f state=success -f environment_url="$URL" -f description="Preview is live"
