@@ -1,0 +1,63 @@
+name: Preview
+
+# Publishes the site to the gh-pages branch (GitHub Pages serves that branch): the main branch at the root, every pull
+# request under /pr-<number>/. For a pull request it also records a GitHub deployment with the preview address, which is
+# what tells Flinteye the preview of that exact commit is ready.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: write
+  deployments: write
+
+concurrency:
+  group: publish-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: src
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          PR: ${{ github.event.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git clone --quiet --branch gh-pages --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" site
+          cd site
+          git config user.name "preview-bot"
+          git config user.email "preview-bot@users.noreply.github.com"
+          if [ "$EVENT" = push ]; then
+            rsync -a --delete --exclude '.git' --exclude 'pr-*/' --exclude '.github' ../src/ ./
+          elif [ "$ACTION" = closed ]; then
+            rm -rf "pr-${PR}"
+          else
+            mkdir -p "pr-${PR}"
+            rsync -a --delete --exclude '.git' --exclude '.github' ../src/ "pr-${PR}/"
+          fi
+          touch .nojekyll
+          git add -A
+          git diff --cached --quiet || { git commit --quiet -m "Publish ${EVENT} ${PR:-main}"; git push --quiet origin gh-pages; }
+
+          [ "$EVENT" = pull_request ] && [ "$ACTION" != closed ] || exit 0
+          URL="https://${REPO%%/*}.github.io/pr-${PR}/"
+          for _ in $(seq 1 40); do
+            if curl -fsS -o /dev/null "$URL"; then break; fi
+            sleep 10
+          done
+          curl -fsS -o /dev/null "$URL"
+          DEPLOY_ID=$(jq -n --arg ref "$HEAD_SHA" --arg env "preview-pr-${PR}" --arg d "Preview of pull request ${PR}" '{ref:$ref, environment:$env, description:$d, auto_merge:false, required_contexts:[], transient_environment:true}' | gh api "repos/${REPO}/deployments" --input - --jq '.id')
+          gh api "repos/${REPO}/deployments/${DEPLOY_ID}/statuses" -f state=success -f environment_url="$URL" -f description="Preview is live"
