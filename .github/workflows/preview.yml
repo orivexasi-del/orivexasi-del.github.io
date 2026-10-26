@@ -36,24 +36,26 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          git clone --quiet --branch gh-pages --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" site
+          # The token is not stored in the clone's URL (and so not in site/.git/config); it is passed only to the push below.
+          git clone --quiet --branch gh-pages --depth 1 "https://github.com/${REPO}.git" site
           cd site
           git config user.name "preview-bot"
           git config user.email "preview-bot@users.noreply.github.com"
           if [ "$EVENT" = push ]; then
-            rsync -a --delete --exclude '.git' --exclude 'pr-*/' --exclude '.github' ../src/ ./
+            rsync -a --no-links --delete --exclude '.git' --exclude 'pr-*/' --exclude '.github' ../src/ ./
           elif [ "$ACTION" = closed ]; then
             rm -rf "pr-${PR}"
           else
             mkdir -p "pr-${PR}"
-            rsync -a --delete --exclude '.git' --exclude '.github' ../src/ "pr-${PR}/"
+            # Symlinks from the pull request are never copied: a link to another file would publish that file.
+            rsync -a --no-links --delete --exclude '.git' --exclude '.github' ../src/ "pr-${PR}/"
             # The preview lives under /pr-N/, so absolute links in the pages (/style.css, /pricing.html) must point there too.
-            find "pr-${PR}" -name '*.html' -exec sed -i -E "s#(href|src)=\"/([^\"]*)\"#\1=\"/pr-${PR}/\2\"#g" {} +
+            find "pr-${PR}" -type f -name '*.html' -exec sed -i -E "s#(href|src)=\"/([^\"]*)\"#\1=\"/pr-${PR}/\2\"#g" {} +
             printf '%s' "$HEAD_SHA" > "pr-${PR}/preview-sha.txt"
           fi
           touch .nojekyll
           git add -A
-          git diff --cached --quiet || { git commit --quiet -m "Publish ${EVENT} ${PR:-main}"; git push --quiet origin gh-pages; }
+          git diff --cached --quiet || { git commit --quiet -m "Publish ${EVENT} ${PR:-main}"; git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push --quiet origin gh-pages; }
 
           [ "$EVENT" = pull_request ] && [ "$ACTION" != closed ] || exit 0
           URL="https://${REPO%%/*}.github.io/pr-${PR}/"
