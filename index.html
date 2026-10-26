@@ -1,13 +1,13 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><title>Nordlys Shop</title></head><body><header><nav aria-label="Main"><a href="/">Home</a><a href="/pricing.html">Pricing</a><a href="/about.html">About</a><a href="/contact.html">Contact</a></nav></header><main>
 <span class="sr-only">Skip to the main content of the Nordlys Shop home page for screen readers</span>
 <section class="hero"><h1>Nordlys Shop</h1><div class="tagline">Handmade lamps shipped across the Nordics in two days</div>
-<p>Plans start at 249 kr a month.</p></section>
+<p>Plans start at 199 kr a month for our lamp club.</p></section>
 <div class="card"><img src="lamp.svg" width="120" height="80" alt="Handmade birch wood lamp"><h2>Birch lamp</h2><p class="muted">In stock, ships tomorrow</p><button id="add" type="button">Add to cart</button></div>
 <div class="card"><h2>Subscribe to news</h2><input id="email" aria-label="Email" type="email"><button id="sub" type="button">Subscribe</button><p id="msg"></p></div>
-<p>Willkommen im Nordlys Shop, wir liefern in alle nordischen Länder.</p>
+<p lang="de">Willkommen im Nordlys Shop, wir liefern in alle nordischen Länder.</p>
 <script>
 var n=0;
-document.getElementById('add').addEventListener('click',function(){if(typeof trackEvent==='function'){trackEvent('add');}});
-document.getElementById('sub').addEventListener('click',function(){var el=document.getElementById('email');var msg=document.getElementById('msg');if(!el.value||!el.checkValidity()){msg.textContent='Please enter a valid email address';return;}fetch('/api/subscribe',{method:'POST',body:JSON.stringify({email:el.value})}).then(function(r){if(!r.ok){throw new Error('failed');}msg.textContent='Subscribed';}).catch(function(){msg.textContent='Could not subscribe, please try again';});});
+document.getElementById('add').addEventListener('click',function(){trackEvent('add');});
+document.getElementById('sub').addEventListener('click',function(){n++;fetch('/api/subscribe',{method:'POST',body:JSON.stringify({email:document.getElementById('email').value})});document.getElementById('msg').textContent='Subscribed '+n+' time(s)';});
 </script></main>
-<footer><a href="/about.html">About</a></footer></body></html>
+<footer><a href="/careers">Careers</a> · <a href="/about.html">About</a></footer></body></html>
